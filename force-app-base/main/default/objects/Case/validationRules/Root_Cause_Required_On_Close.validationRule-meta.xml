@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Root_Cause_Required_On_Close</fullName>
+    <active>true</active>
+    <description>Case cannot close without a root cause category. Bypass: Bypass_Validation_Rules. Checks Status too, because IsClosed keeps the prior value during the closing save; add other closed statuses to the OR.</description>
+    <errorConditionFormula>AND(
+    NOT($Permission.Bypass_Validation_Rules),
+    OR(IsClosed, ISPICKVAL(Status, "Closed")),
+    ISBLANK(TEXT(Root_Cause_Category__c))
+)</errorConditionFormula>
+    <errorDisplayField>Root_Cause_Category__c</errorDisplayField>
+    <errorMessage>Select a root cause category before closing the case.</errorMessage>
+</ValidationRule>

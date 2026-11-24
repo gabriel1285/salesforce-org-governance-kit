@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Escalation_Reason_Required</fullName>
+    <active>true</active>
+    <description>An escalated case must say why. Bypassed for users holding the Bypass_Validation_Rules custom permission (data loads, integrations).</description>
+    <errorConditionFormula>AND(
+    NOT($Permission.Bypass_Validation_Rules),
+    Escalated__c,
+    ISBLANK(TEXT(Escalation_Reason__c))
+)</errorConditionFormula>
+    <errorDisplayField>Escalation_Reason__c</errorDisplayField>
+    <errorMessage>Select an escalation reason before escalating the case.</errorMessage>
+</ValidationRule>

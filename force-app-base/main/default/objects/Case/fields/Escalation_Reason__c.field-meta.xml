@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Escalation_Reason__c</fullName>
+    <description>Why the case was escalated. Required when Escalated is checked (see validation rule Escalation_Reason_Required).</description>
+    <inlineHelpText>Pick the main reason for the escalation.</inlineHelpText>
+    <label>Escalation Reason</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>SLA_At_Risk</fullName>
+                <default>false</default>
+                <label>SLA at risk</label>
+            </value>
+            <value>
+                <fullName>Formal_Complaint</fullName>
+                <default>false</default>
+                <label>Formal complaint</label>
+            </value>
+            <value>
+                <fullName>Financial_Impact</fullName>
+                <default>false</default>
+                <label>Financial impact</label>
+            </value>
+            <value>
+                <fullName>Other</fullName>
+                <default>false</default>
+                <label>Other</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Persona: service agent. Assign this group, not the individual permission sets.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Service Agent</label>
+    <permissionSets>Service_Agent_Base</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>

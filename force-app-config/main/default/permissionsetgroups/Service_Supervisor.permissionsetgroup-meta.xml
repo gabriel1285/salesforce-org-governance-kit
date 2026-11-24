@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSetGroup xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Persona: service supervisor. Agent baseline plus supervisor visibility.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>Service Supervisor</label>
+    <permissionSets>Service_Agent_Base</permissionSets>
+    <permissionSets>Service_Supervisor_Addon</permissionSets>
+    <status>Updated</status>
+</PermissionSetGroup>
