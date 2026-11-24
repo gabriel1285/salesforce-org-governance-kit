@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Governance check: DESCRIPTION also fails when a validation rule or permission set description is
+  over 255 characters (1000 for fields). It passes source conversion and only fails at deploy time.
+
 ## 1.0.1 (2026-11-24)
 
 First deploy to a real org (Developer Edition) and acceptance test of spec 001.

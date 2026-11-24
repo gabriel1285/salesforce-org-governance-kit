@@ -13,7 +13,9 @@
  *                 or Customize Application, and no object-level Modify All.
  *   PERM-BYPASS   Bypass custom permissions are granted only by Automation_Admin.
  *   NO-PROFILES   Access lives in permission sets: no profile metadata in the repo.
- *   DESCRIPTION   Flows, validation rules, fields and permission sets have a description.
+ *   DESCRIPTION   Flows, validation rules, fields and permission sets have a description, and it
+ *                 fits the platform limit (255 for validation rules and permission sets, 1000 for
+ *                 fields). An over-long description passes source conversion but fails the deploy.
  */
 'use strict';
 
@@ -31,6 +33,20 @@ const BYPASS_PERMS = ['Bypass_Automation', 'Bypass_Validation_Rules'];
 
 const findings = [];
 const fail = (rule, file, msg) => findings.push({ rule, file: path.relative(ROOT, file), msg });
+
+// Description present and, where the platform caps it, within the limit.
+function checkDescription(file, xml, what, maxLength) {
+  const text = tag(xml, 'description');
+  if (!text) return fail('DESCRIPTION', file, `${what} has no description.`);
+  const length = decodeXml(text).length;
+  if (maxLength && length > maxLength) {
+    fail('DESCRIPTION', file, `${what} description is ${length} characters, longer than the ${maxLength} the platform accepts.`);
+  }
+}
+
+function decodeXml(s) {
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+}
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -64,16 +80,16 @@ for (const file of files) {
     if (!formula.includes('$Permission.Bypass_Validation_Rules')) {
       fail('VR-BYPASS', file, 'Validation rule does not check $Permission.Bypass_Validation_Rules.');
     }
-    if (!tag(xml, 'description')) fail('DESCRIPTION', file, 'Validation rule has no description.');
+    checkDescription(file, xml, 'Validation rule', 255);
   }
 
   if (base.endsWith('.field-meta.xml')) {
-    if (!tag(xml, 'description')) fail('DESCRIPTION', file, 'Field has no description.');
+    checkDescription(file, xml, 'Field', 1000);
   }
 
   if (base.endsWith('.flow-meta.xml')) {
     const flowName = base.replace('.flow-meta.xml', '');
-    if (!tag(xml, 'description')) fail('DESCRIPTION', file, 'Flow has no description.');
+    checkDescription(file, xml, 'Flow');
 
     const start = tag(xml, 'start') || '';
     const triggerType = tag(start, 'triggerType');
@@ -101,7 +117,7 @@ for (const file of files) {
 
   if (base.endsWith('.permissionset-meta.xml')) {
     const psName = base.replace('.permissionset-meta.xml', '');
-    if (!tag(xml, 'description')) fail('DESCRIPTION', file, 'Permission set has no description.');
+    checkDescription(file, xml, 'Permission set', 255);
 
     for (const up of blocks(xml, 'userPermissions')) {
       const name = tag(up, 'name');
