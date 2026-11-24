@@ -28,6 +28,18 @@ cat > "$D/objects/Case/validationRules/No_Bypass.validationRule-meta.xml" <<'XML
 </ValidationRule>
 XML
 
+# Passes every rule except the description limit (256 characters, the platform accepts 255).
+cat > "$D/objects/Case/validationRules/Long_Description.validationRule-meta.xml" <<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Long_Description</fullName>
+    <active>true</active>
+    <description>$(printf 'x%.0s' $(seq 1 256))</description>
+    <errorConditionFormula>AND(NOT(\$Permission.Bypass_Validation_Rules), ISBLANK(Subject))</errorConditionFormula>
+    <errorMessage>Subject is required.</errorMessage>
+</ValidationRule>
+XML
+
 cat > "$D/objects/Case/fields/No_Description__c.field-meta.xml" <<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
@@ -100,5 +112,11 @@ for rule in VR-BYPASS FLOW-BYPASS FLOW-FAULT FLOW-HARDCODE PERM-POWER PERM-BYPAS
   grep -q "\[$rule\]" <<<"$OUTPUT" || { echo "FAIL: rule $rule not reported"; exit 1; }
   echo "  ok  $rule"
 done
+
+grep -q "longer than the 255" <<<"$OUTPUT" || { echo "FAIL: over-long description not reported"; exit 1; }
+if grep -A1 -E "^\s*\[(VR-BYPASS|FLOW|PERM|NO-PROFILES)" <<<"$OUTPUT" | grep -q "Long_Description"; then
+  echo "FAIL: Long_Description should only break the description limit"; exit 1
+fi
+echo "  ok  DESCRIPTION length"
 
 echo "Self-test passed."
