@@ -1,0 +1,79 @@
+# Azure DevOps version of .github/workflows/pr-validation.yml.
+# Same scripts, same rules: the CI tool is interchangeable, the release logic is not.
+#
+# Setup
+#   - Branch policy on develop, release/*, main: require this pipeline as build validation.
+#     (In Azure Repos, PR builds come from the branch policy; the pr: block below only
+#     applies when the code lives on GitHub or Bitbucket.)
+#   - Variable groups sf-dev, sf-hml, sf-prod, each with a secret SFDX_AUTH_URL.
+#
+# Why one Validate stage per environment
+#   The PR target branch is only known at runtime, and variable groups are linked at
+#   compile time. So the Governance stage maps the target branch to an environment with
+#   scripts/ci/target-env.sh (the same script GitHub Actions uses), and each Validate
+#   stage links its own group and runs only when its environment matches.
+trigger: none
+
+pr:
+  branches:
+    include: [develop, release/*, main]
+
+parameters:
+  - name: environments
+    type: object
+    default: [dev, hml, prod]
+
+pool:
+  vmImage: ubuntu-latest
+
+stages:
+  - stage: Governance
+    jobs:
+      - job: governance
+        steps:
+          - checkout: self
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+          - script: node scripts/governance-check.js
+            displayName: Governance check
+          - script: bash scripts/test/governance-check.test.sh
+            displayName: Governance check self-test
+          - script: |
+              set -euo pipefail
+              ENV="$(bash scripts/ci/target-env.sh "$(System.PullRequest.TargetBranch)")"
+              echo "PR targets $(System.PullRequest.TargetBranch) -> $ENV"
+              echo "##vso[task.setvariable variable=env;isOutput=true]$ENV"
+            name: map
+            displayName: Map target branch to environment
+
+  - ${{ each env in parameters.environments }}:
+      - stage: Validate_${{ env }}
+        displayName: Validate against ${{ env }}
+        dependsOn: Governance
+        condition: and(succeeded(), eq(dependencies.Governance.outputs['governance.map.env'], '${{ env }}'))
+        variables:
+          - group: sf-${{ env }}
+        jobs:
+          - job: validate
+            steps:
+              - checkout: self
+                fetchDepth: 0
+              - task: NodeTool@0
+                inputs:
+                  versionSpec: '20.x'
+              - script: bash scripts/ci/install-tools.sh
+                displayName: Install Salesforce CLI and sfdx-git-delta
+              - script: bash scripts/ci/auth.sh target
+                displayName: Authenticate
+                env:
+                  SFDX_AUTH_URL: $(SFDX_AUTH_URL)
+              - script: |
+                  BASE="$(System.PullRequest.TargetBranch)"
+                  bash scripts/ci/build-delta.sh "origin/${BASE#refs/heads/}" HEAD delta
+                displayName: Build delta from target branch
+              - script: bash scripts/ci/deploy.sh validate target delta
+                displayName: Check-only deploy
+              - publish: delta
+                artifact: delta-pr-$(System.PullRequest.PullRequestId)-${{ env }}
+                condition: always()

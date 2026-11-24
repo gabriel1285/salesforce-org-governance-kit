@@ -1,0 +1,86 @@
+# Runs on every PR into a promotion branch.
+#   1. Governance check (always): fails fast on rule violations, no org needed.
+#   2. Delta + check-only deploy against the environment the base branch promotes to.
+#      Skipped with a notice when that environment has no SFDX_AUTH_URL secret,
+#      so forks and this public demo stay green without real orgs.
+# No paths filter on purpose: "governance" is a required check, and a filtered-out PR
+# (docs only) would wait for it forever. An empty delta makes the org steps a no-op.
+name: PR validation
+
+on:
+  pull_request:
+    branches: [develop, 'release/**', main]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Governance check
+        run: node scripts/governance-check.js
+      - name: Governance check self-test
+        run: bash scripts/test/governance-check.test.sh
+
+  target:
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.map.outputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: map
+        run: echo "env=$(bash scripts/ci/target-env.sh '${{ github.base_ref }}')" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: [governance, target]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.target.outputs.env }}-validation
+    env:
+      SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for org credentials
+        id: creds
+        run: |
+          if [ -z "$SFDX_AUTH_URL" ]; then
+            echo "::notice::No SFDX_AUTH_URL for '${{ needs.target.outputs.env }}'. Skipping check-only deploy."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.skip != 'true'
+        with:
+          node-version: 20
+
+      - name: Install Salesforce CLI and sfdx-git-delta
+        if: steps.creds.outputs.skip != 'true'
+        run: bash scripts/ci/install-tools.sh
+
+      - name: Authenticate
+        if: steps.creds.outputs.skip != 'true'
+        run: bash scripts/ci/auth.sh target
+
+      - name: Build delta from base branch
+        if: steps.creds.outputs.skip != 'true'
+        run: bash scripts/ci/build-delta.sh "origin/${{ github.base_ref }}" HEAD delta
+
+      - name: Check-only deploy
+        if: steps.creds.outputs.skip != 'true'
+        run: bash scripts/ci/deploy.sh validate target delta
+
+      - name: Keep the delta for review
+        if: always() && steps.creds.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: delta-pr-${{ github.event.pull_request.number }}
+          path: delta/
+          if-no-files-found: ignore

@@ -1,0 +1,66 @@
+# Azure DevOps version of .github/workflows/deploy.yml.
+#
+# Setup
+#   - Environments salesforce-dev, salesforce-hml, salesforce-prod;
+#     add an Approvals check on salesforce-prod.
+#   - Variable groups sf-dev, sf-hml, sf-prod with a secret SFDX_AUTH_URL.
+#   - PRs completed with squash merge, so HEAD~1..HEAD is the merged change.
+#
+# Unlike PR validation, the branch is known at compile time here (Build.SourceBranch is
+# available to template expressions), so the variable group and the environment are
+# chosen with ${{ if }}. A deployment job needs its environment name at compile time,
+# which is why it uses ${{ variables.targetEnv }} and not the $(targetEnv) macro.
+trigger:
+  branches:
+    include: [develop, release/*, hotfix/*, main]
+  paths:
+    include: [force-app-*/*, sfdx-project.json]
+
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - ${{ if eq(variables['Build.SourceBranchName'], 'develop') }}:
+      - group: sf-dev
+      - name: targetEnv
+        value: dev
+  - ${{ if or(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'), startsWith(variables['Build.SourceBranch'], 'refs/heads/hotfix/')) }}:
+      - group: sf-hml
+      - name: targetEnv
+        value: hml
+  - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
+      - group: sf-prod
+      - name: targetEnv
+        value: prod
+
+stages:
+  - stage: Deploy
+    jobs:
+      - deployment: deploy
+        environment: salesforce-${{ variables.targetEnv }}
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 2
+                - task: NodeTool@0
+                  inputs:
+                    versionSpec: '20.x'
+                - script: node scripts/governance-check.js
+                  displayName: Governance check
+                - script: bash scripts/ci/install-tools.sh
+                  displayName: Install Salesforce CLI and sfdx-git-delta
+                - script: bash scripts/ci/auth.sh target
+                  displayName: Authenticate
+                  env:
+                    SFDX_AUTH_URL: $(SFDX_AUTH_URL)
+                - script: bash scripts/ci/build-delta.sh HEAD~1 HEAD delta
+                  displayName: Build delta of the merged change
+                - script: bash scripts/ci/deploy.sh deploy target delta
+                  displayName: Deploy
+                - publish: delta
+                  artifact: delta-${{ variables.targetEnv }}-$(Build.SourceVersion)
+                  condition: always()

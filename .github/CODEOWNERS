@@ -1,0 +1,7 @@
+# Every change to access, automation or the pipeline needs the platform owner's review.
+*                       @gabriel1285
+/force-app-config/      @gabriel1285
+/force-app-service/     @gabriel1285
+/scripts/               @gabriel1285
+/.github/               @gabriel1285
+/azure-pipelines/       @gabriel1285
