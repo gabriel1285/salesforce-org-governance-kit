@@ -34,7 +34,17 @@ flowchart LR
    branch promotes to. Local tests run.
 4. **Deploy on merge** (`scripts/ci/deploy.sh deploy`). Metadata-only releases skip Apex tests; releases
    with Apex run local tests. Deletions run after the deploy.
-5. **The delta is kept** as a build artifact, so every deployment can be audited.
+5. **Checkpoint** (`scripts/ci/checkpoint.sh`). After a successful deploy the tag `deployed/<env>` moves
+   to that commit, and the next deploy diffs from it, not from the previous commit. A failed deploy is
+   therefore retried by the next merge instead of silently missing from the org.
+6. **The delta is kept** as a build artifact, so every deployment can be audited.
+
+### Deletions
+
+- Deleting a whole object is refused unless the run sets `ALLOW_OBJECT_DELETION=true`. An object deletion
+  takes its data with it, so it is a reviewed decision, never a side effect of removing a folder.
+- Deletions run with `--ignore-warnings`: an environment that never received a component reports its
+  deletion as a warning, and that alone would otherwise fail the deploy.
 
 The same scripts run on GitHub Actions (`.github/workflows/`) and Azure DevOps (`azure-pipelines/`).
 

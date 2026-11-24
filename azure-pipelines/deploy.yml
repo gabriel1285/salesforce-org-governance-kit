@@ -4,7 +4,9 @@
 #   - Environments salesforce-dev, salesforce-hml, salesforce-prod;
 #     add an Approvals check on salesforce-prod.
 #   - Variable groups sf-dev, sf-hml, sf-prod with a secret SFDX_AUTH_URL.
-#   - PRs completed with squash merge, so HEAD~1..HEAD is the merged change.
+#   - The build service needs "Contribute" on the repo to push the deployed/<env> checkpoint tag.
+#   - The delta starts at deployed/<env>, the last successful deploy to that environment, so a
+#     failed deploy is picked up by the next run. With no tag yet it uses HEAD~1 (squash merge).
 #
 # Unlike PR validation, the branch is known at compile time here (Build.SourceBranch is
 # available to template expressions), so the variable group and the environment are
@@ -45,7 +47,8 @@ stages:
             deploy:
               steps:
                 - checkout: self
-                  fetchDepth: 2
+                  fetchDepth: 0
+                  persistCredentials: true
                 - task: NodeTool@0
                   inputs:
                     versionSpec: '20.x'
@@ -57,10 +60,14 @@ stages:
                   displayName: Authenticate
                   env:
                     SFDX_AUTH_URL: $(SFDX_AUTH_URL)
-                - script: bash scripts/ci/build-delta.sh HEAD~1 HEAD delta
-                  displayName: Build delta of the merged change
+                - script: |
+                    FROM="$(bash scripts/ci/checkpoint.sh get ${{ variables.targetEnv }})"
+                    bash scripts/ci/build-delta.sh "$FROM" HEAD delta
+                  displayName: Build delta since the last deploy to this environment
                 - script: bash scripts/ci/deploy.sh deploy target delta
                   displayName: Deploy
+                - script: bash scripts/ci/checkpoint.sh set ${{ variables.targetEnv }}
+                  displayName: Move the checkpoint
                 - publish: delta
                   artifact: delta-${{ variables.targetEnv }}-$(Build.SourceVersion)
                   condition: always()

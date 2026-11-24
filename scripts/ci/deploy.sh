@@ -8,6 +8,10 @@
 #   - deploy:   RunLocalTests when the delta has Apex; otherwise the org default
 #               (no tests for metadata-only releases).
 #   - Deletions run after the deploy (post-destructive), so references are removed first.
+#   - Deleting a whole object is refused unless ALLOW_OBJECT_DELETION=true: losing an object
+#     loses its data, so it must be a deliberate, reviewed decision, never a side effect of a merge.
+#   - With deletions, warnings are ignored: deleting something an older environment never had
+#     is reported as a warning, and without --ignore-warnings that alone fails the whole deploy.
 set -euo pipefail
 
 MODE="${1:?usage: deploy.sh <validate|deploy> <org-alias> [delta-dir]}"
@@ -28,7 +32,12 @@ fi
 # so the manifest is always passed and the destructive file rides along when needed.
 ARGS=(--target-org "$ORG" --wait 60 --verbose --manifest "$PKG")
 if has_types "$DESTRUCTIVE"; then
-  ARGS+=(--post-destructive-changes "$DESTRUCTIVE")
+  if grep -q '<name>CustomObject</name>' "$DESTRUCTIVE" && [[ "${ALLOW_OBJECT_DELETION:-false}" != "true" ]]; then
+    echo "This delta deletes a whole object (see destructiveChanges.xml). Refusing to $MODE." >&2
+    echo "If that is intended, rerun with ALLOW_OBJECT_DELETION=true after review." >&2
+    exit 1
+  fi
+  ARGS+=(--post-destructive-changes "$DESTRUCTIVE" --ignore-warnings)
 fi
 
 HAS_APEX=false

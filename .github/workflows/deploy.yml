@@ -4,7 +4,9 @@
 #   hotfix/*  -> hml
 #   main      -> prod (GitHub environment "prod" should require a reviewer)
 #
-# PRs are squash-merged, so HEAD~1..HEAD is exactly the merged change.
+# The delta starts at the tag deployed/<env> (the last successful deploy to that environment),
+# so a failed deploy is picked up again by the next run instead of being skipped. The first
+# run, with no tag yet, uses HEAD~1 (PRs are squash-merged, so that is the merged change).
 name: Deploy
 
 on:
@@ -13,6 +15,9 @@ on:
     paths:
       - 'force-app-*/**'
       - 'sfdx-project.json'
+
+permissions:
+  contents: write   # to move the deployed/<env> checkpoint tag
 
 concurrency:
   group: deploy-${{ github.ref_name }}
@@ -37,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Check for org credentials
         id: creds
@@ -64,13 +69,19 @@ jobs:
         if: steps.creds.outputs.skip != 'true'
         run: bash scripts/ci/auth.sh target
 
-      - name: Build delta of the merged change
+      - name: Build delta since the last deploy to this environment
         if: steps.creds.outputs.skip != 'true'
-        run: bash scripts/ci/build-delta.sh HEAD~1 HEAD delta
+        run: |
+          FROM="$(bash scripts/ci/checkpoint.sh get '${{ needs.target.outputs.env }}')"
+          bash scripts/ci/build-delta.sh "$FROM" HEAD delta
 
       - name: Deploy
         if: steps.creds.outputs.skip != 'true'
         run: bash scripts/ci/deploy.sh deploy target delta
+
+      - name: Move the checkpoint
+        if: steps.creds.outputs.skip != 'true'
+        run: bash scripts/ci/checkpoint.sh set '${{ needs.target.outputs.env }}'
 
       - name: Keep the deployed delta
         if: always() && steps.creds.outputs.skip != 'true'

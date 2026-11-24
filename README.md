@@ -45,7 +45,9 @@ flowchart LR
    without a fault path, or a permission set grants Modify All Data.
 2. **sfdx-git-delta** builds a package with only what changed, plus a destructive manifest for deletions.
 3. **Check-only deploy** runs against the environment the PR promotes to.
-4. **Merge deploys** the same delta. Production requires an approval. Every delta is kept as an artifact.
+4. **Merge deploys** everything since the last successful deploy to that environment (a `deployed/<env>`
+   tag), so a failed deploy is retried, not lost. Production requires an approval. Deleting a whole
+   object is refused unless explicitly allowed. Every delta is kept as an artifact.
 
 ## Repository layout
 
@@ -58,7 +60,7 @@ scripts/
   governance-check.js   rule checks, no dependencies
   organize.sh           moves retrieved metadata into the right layer
   simulate-release.sh   local dry run of a release (commits, delta, check-only deploy)
-  ci/                   shared by both pipelines: install, auth, delta, deploy, branch → env
+  ci/                   shared by both pipelines: install, auth, delta, deploy, checkpoint, branch → env
 .github/workflows/   GitHub Actions: PR validation, deploy
 azure-pipelines/     Azure DevOps: the same two pipelines, same scripts
 specs/               spec-driven work items (spec, plan, tasks)
