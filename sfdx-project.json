@@ -1,0 +1,12 @@
+{
+  "packageDirectories": [
+    { "path": "force-app-base", "default": true },
+    { "path": "force-app-config" },
+    { "path": "force-app-service" },
+    { "path": "force-app-ui" }
+  ],
+  "name": "salesforce-org-governance-kit",
+  "namespace": "",
+  "sfdcLoginUrl": "https://login.salesforce.com",
+  "sourceApiVersion": "64.0"
+}
